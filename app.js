@@ -1,4 +1,3 @@
-const ASSET_VERSION = "26-1766801809";
 
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w/2, h/2);
@@ -424,7 +423,7 @@ if (audioFile) {
 async function loadMidiFromFile(file) {
   if (!file) return;
   try {
-    const { parseMidiFile } = await import(`./midi.js?v=${ASSET_VERSION}`);
+    const { parseMidiFile } = await import("./midi.js");
     midiData = await parseMidiFile(file);
 
     const maxFret = parseInt(maxFretEl.value,10) || 20;
@@ -1122,7 +1121,7 @@ function showTab(tabName) {
 if (libCount || libList) { refreshLibrary(); }
 
 // --- Build / update helpers ---
-const BUILD_VERSION = "v18";
+const BUILD_VERSION = "v27";
 
 const updateBar = document.getElementById("updateBar");
 const btnUpdateNow = document.getElementById("btnUpdateNow");
