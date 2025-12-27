@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#111111" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="style.css?v=1766804054" />
+  <link rel="stylesheet" href="style.css?v=31-1766804808" />
   <title>BassCoach</title>
 </head>
 <body>
@@ -219,43 +219,12 @@
 
   <footer class="small">
     <span>Client‑side only • No accounts • No paid APIs</span>
-    <span id="buildBadge" class="badge">Build v30 • 2025-12-27 02:54 UTC</span>
-</footer>
+  </footer>
 
-  
+  <script nomodule src="legacy.js"></script>
 </div>
-
-<script>
-  // basic diagnostics (runs even if modules fail)
-  window.__bc_diag = [];
-  function bcLog(msg){
-    window.__bc_diag.push(msg);
-    try {
-      const el = document.getElementById("jsStatus");
-      if (el) el.textContent = "JS: " + msg;
-    } catch(e){}
-  }
-  window.addEventListener("error", (e)=>bcLog("error: "+(e.message||e.type)));
-  window.addEventListener("unhandledrejection", (e)=>bcLog("promise: "+(e.reason?.message||e.reason||"rejection")));
-  bcLog("loader ok");
-</script>
-<script type="module">
-  const v = "1766804054";
-  // dynamic import with Promise (no top-level await)
-  import(`./app.js?v=${v}`).then(() => {
-    try {
-      window.__bc_diag = window.__bc_diag || [];
-      window.__bc_diag.push("app imported");
-      const el = document.getElementById("jsStatus");
-      if (el && el.textContent.startsWith("JS:")) el.textContent = "JS: module ok";
-    } catch (e) {}
-  }).catch((e) => {
-    const msg = (e && e.message) ? e.message : String(e);
-    const el = document.getElementById("jsStatus");
-    if (el) el.textContent = "JS: FAILED (" + msg + ")";
-    console.error(e);
-  });
-</script>
-
+  <script src="bundle.js?v=31-1766804808"></script>
 </body>
 </html>
+
+<div id="buildBadge" class="badge">Build v31 • 2025-12-27 03:06 UTC</div>

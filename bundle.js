@@ -1,3 +1,224 @@
+// BassCoach v31 bundle — single-file JS for GitHub Pages / iOS Safari
+// Built 2025-12-27 03:06 UTC
+
+// pitch.js - improved autocorrelation pitch detection + helpers
+// Designed to be robust on bass fundamentals (E1=41Hz) across laptop/phone mics.
+
+function autoCorrelateFloat32(buf, sampleRate) {
+  const SIZE = buf.length;
+
+  // RMS (signal level)
+  let rms = 0;
+  let mean = 0;
+  for (let i = 0; i < SIZE; i++) {
+    const v = buf[i];
+    rms += v * v;
+    mean += v;
+  }
+  rms = Math.sqrt(rms / SIZE);
+  mean /= SIZE;
+
+  // Lower gate so quiet interfaces still work; caller can apply its own threshold
+  if (rms < 0.003) return { freq: null, confidence: 0, rms };
+
+  // Remove DC offset
+  const x = new Float32Array(SIZE);
+  for (let i = 0; i < SIZE; i++) x[i] = buf[i] - mean;
+
+  const MIN_FREQ = 35;
+  const MAX_FREQ = 400;
+  const minLag = Math.floor(sampleRate / MAX_FREQ);
+  const maxLag = Math.floor(sampleRate / MIN_FREQ);
+
+  // Energy for normalization
+  let energy = 0;
+  for (let i = 0; i < SIZE; i++) energy += x[i] * x[i];
+  if (energy <= 1e-9) return { freq: null, confidence: 0, rms };
+
+  let bestLag = -1;
+  let bestCorr = -1;
+
+  // Normalized autocorrelation
+  // corr(lag) = sum x[i]*x[i+lag] / sqrt(sum x[i]^2 * sum x[i+lag]^2)
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let num = 0;
+    let e1 = 0;
+    let e2 = 0;
+    for (let i = 0; i < SIZE - lag; i++) {
+      const a = x[i];
+      const b = x[i + lag];
+      num += a * b;
+      e1 += a * a;
+      e2 += b * b;
+    }
+    const den = Math.sqrt(e1 * e2) + 1e-12;
+    const corr = num / den; // -1..1
+    if (corr > bestCorr) {
+      bestCorr = corr;
+      bestLag = lag;
+    }
+  }
+
+  if (bestLag === -1) return { freq: null, confidence: 0, rms };
+
+  // Parabolic interpolation around bestLag for finer estimate
+  const lag = bestLag;
+  // Compute local correlations for lag-1, lag, lag+1
+  const corrAt = (L) => {
+    let num = 0, e1 = 0, e2 = 0;
+    for (let i = 0; i < SIZE - L; i++) {
+      const a = x[i], b = x[i + L];
+      num += a*b; e1 += a*a; e2 += b*b;
+    }
+    return num / (Math.sqrt(e1*e2) + 1e-12);
+  };
+  const c0 = lag > minLag ? corrAt(lag - 1) : bestCorr;
+  const c1 = bestCorr;
+  const c2 = lag < maxLag ? corrAt(lag + 1) : bestCorr;
+
+  let shift = 0;
+  const denom = (2*c1 - c0 - c2);
+  if (Math.abs(denom) > 1e-6) shift = (c2 - c0) / (2 * denom);
+  const refinedLag = lag + shift;
+
+  const freq = sampleRate / refinedLag;
+
+  // Confidence: map corr peak (0..1) into 0..1
+  // Typical good pitches will be ~0.6-0.95.
+  const confidence = Math.max(0, Math.min(1, (bestCorr - 0.2) / 0.8));
+
+  return { freq, confidence, rms };
+}
+
+function freqToMidi(freq) {
+  return 69 + 12 * Math.log2(freq / 440);
+}
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+function midiToNoteName(midi) {
+  const names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const m = Math.round(midi);
+  const name = names[(m + 1200) % 12];
+  const octave = Math.floor(m / 12) - 1;
+  return `${name}${octave}`;
+}
+function centsOff(freq, targetFreq) {
+  return 1200 * Math.log2(freq / targetFreq);
+}
+
+window.BassCoachPitch = { autoCorrelateFloat32, freqToMidi, midiToFreq, midiToNoteName, centsOff };
+
+
+// midi.js — minimal built-in MIDI parser (no external libraries)
+// Supports standard SMF, extracts note on/off with timing.
+
+function readVarLen(data, idx) {
+  let value = 0;
+  let b;
+  do {
+    b = data[idx++];
+    value = (value << 7) | (b & 0x7f);
+  } while (b & 0x80);
+  return [value, idx];
+}
+
+async function parseMidiFile(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let i = 0;
+
+  // Header
+  if (String.fromCharCode(...buf.slice(0,4)) !== "MThd")
+    throw new Error("Not a MIDI file");
+  const format = (buf[8]<<8)|buf[9];
+  const ntrks = (buf[10]<<8)|buf[11];
+  const division = (buf[12]<<8)|buf[13];
+  i = 14;
+
+  let tempo = 500000; // default 120 BPM
+  const events = [];
+
+  for (let t=0; t<ntrks; t++) {
+    if (String.fromCharCode(...buf.slice(i,i+4)) !== "MTrk") break;
+    let len = (buf[i+4]<<24)|(buf[i+5]<<16)|(buf[i+6]<<8)|buf[i+7];
+    i += 8;
+    const end = i + len;
+
+    let time = 0;
+    let lastStatus = 0;
+
+    while (i < end) {
+      let delta;
+      [delta, i] = readVarLen(buf, i);
+      time += delta;
+
+      let status = buf[i];
+      if (status < 0x80) {
+        status = lastStatus;
+      } else {
+        i++;
+        lastStatus = status;
+      }
+
+      if (status === 0xFF) { // meta
+        const type = buf[i++];
+        let l; [l, i] = readVarLen(buf, i);
+        if (type === 0x51) {
+          tempo = (buf[i]<<16)|(buf[i+1]<<8)|buf[i+2];
+        }
+        i += l;
+      } else if ((status & 0xF0) === 0x90) { // note on
+        const note = buf[i++];
+        const vel = buf[i++];
+        if (vel > 0) {
+          events.push({ tick: time, midi: note, on: true });
+        } else {
+          events.push({ tick: time, midi: note, on: false });
+        }
+      } else if ((status & 0xF0) === 0x80) { // note off
+        const note = buf[i++];
+        i++;
+        events.push({ tick: time, midi: note, on: false });
+      } else {
+        // skip other events (2 bytes)
+        i += 2;
+      }
+    }
+  }
+
+  // Pair note on/off
+  const noteOns = {};
+  const notes = [];
+  events.forEach(ev => {
+    if (ev.on) {
+      noteOns[ev.midi] = ev.tick;
+    } else if (noteOns[ev.midi] != null) {
+      const start = noteOns[ev.midi];
+      const dur = ev.tick - start;
+      delete noteOns[ev.midi];
+      const secPerTick = (tempo/1000000) / division;
+      notes.push({
+        time: start * secPerTick,
+        duration: dur * secPerTick,
+        midi: ev.midi,
+        velocity: 0.8
+      });
+    }
+  });
+
+  const duration = notes.length
+    ? Math.max(...notes.map(n => n.time + n.duration))
+    : 0;
+
+  return { events: notes, duration };
+}
+
+window.BassCoachMidi = { parseMidiFile };
+
+
+
+// Bind pitch helpers (global, Safari-safe)
+const { autoCorrelateFloat32, freqToMidi, midiToFreq, midiToNoteName, centsOff } = window.BassCoachPitch;
 
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w/2, h/2);
@@ -9,7 +230,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y, x+w, y, rr);
   ctx.closePath();
 }
-import { autoCorrelateFloat32, freqToMidi, midiToFreq, midiToNoteName, centsOff } from "./pitch.js";
 const $ = (id) => document.getElementById(id);
 
 const btnStartAudio = $("btnStartAudio");
@@ -424,7 +644,7 @@ if (audioFile) {
 async function loadMidiFromFile(file) {
   if (!file) return;
   try {
-    const { parseMidiFile } = await import("./midi.js");
+    const { parseMidiFile } = window.BassCoachMidi;
     midiData = await parseMidiFile(file);
 
     const maxFret = parseInt(maxFretEl.value,10) || 20;
@@ -1188,3 +1408,4 @@ if (btnFullscreen) {
 }
 
 const buildBadge = document.getElementById("buildBadge"); if (buildBadge) buildBadge.textContent = `Build v21 • 2025-12-26 22:39 UTC`;
+
