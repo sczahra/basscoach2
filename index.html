@@ -219,10 +219,41 @@
 
   <footer class="small">
     <span>Client‑side only • No accounts • No paid APIs</span>
-    <span id="buildBadge" class="badge">Build v27 • 2025-12-27 02:31 UTC</span>
+    <span id="buildBadge" class="badge">Build v28 • 2025-12-27 02:37 UTC</span>
 </footer>
 
-  <script type="module" src="app.js?v=1766802684"></script>
+  
 </div>
+
+<script>
+  // basic diagnostics (runs even if modules fail)
+  window.__bc_diag = [];
+  function bcLog(msg){
+    window.__bc_diag.push(msg);
+    try {
+      const el = document.getElementById("jsStatus");
+      if (el) el.textContent = "JS: " + msg;
+    } catch(e){}
+  }
+  window.addEventListener("error", (e)=>bcLog("error: "+(e.message||e.type)));
+  window.addEventListener("unhandledrejection", (e)=>bcLog("promise: "+(e.reason?.message||e.reason||"rejection")));
+  bcLog("loader ok");
+</script>
+<script type="module">
+  const v = "1766803061";
+  try {
+    // dynamic import so we can surface errors
+    await import(`./app.js?v=${v}`);
+    window.__bc_diag?.push("app imported");
+    const el = document.getElementById("jsStatus");
+    if (el && el.textContent.startsWith("JS:")) el.textContent = "JS: module ok";
+  } catch (e) {
+    const msg = e?.message || String(e);
+    const el = document.getElementById("jsStatus");
+    if (el) el.textContent = "JS: FAILED (" + msg + ")";
+    console.error(e);
+  }
+</script>
+
 </body>
 </html>
