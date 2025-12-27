@@ -396,11 +396,9 @@ function loopPitch() {
 btnStartAudio.addEventListener("click", async () => {
   try {
     await startMic();
-    );
-    }
   } catch (e) {
+    console.error(e);
     micStatus.textContent = "Mic: error";
-    alert("Mic permission failed. Use the Netlify HTTPS URL in Safari, allow microphone, then reload and try again.");
   }
 });
 
@@ -1023,7 +1021,7 @@ function drawLane(nowSec) {
           : `MISS ❌  Target ${tlabel} • You ${lastPitch.name}`,
         12,
         30
-      );
+
     } else {
       ctx.fillStyle = "#bbb";
       ctx.font = "14px -apple-system, system-ui";
@@ -1109,7 +1107,7 @@ function renderLibrary() {
 function showTab(tabName) {
   document.querySelectorAll(".tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === tabName)
-  );
+
   document.querySelectorAll(".panel").forEach((p) => {
     p.hidden = p.id !== `tab-${tabName}`;
   });
