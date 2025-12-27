@@ -509,7 +509,7 @@ btnPlay.addEventListener("click", () => {
     isPaused = false;
     // Keep continuity: startTime such that playbackTime continues from pausedAt
     startTime = audioCtx.currentTime - (pausedAt / getSpeedFactor());
-    if (audioLoaded && playAudioEl?.checked) {
+    if (audioLoaded && (playAudioEl && playAudioEl.checked)) {
       const a = ensureAudioEl();
       const target = Math.max(0, pausedAt + getSyncOffset());
       a.currentTime = target;
@@ -523,7 +523,7 @@ btnPlay.addEventListener("click", () => {
   isPaused = false;
   pausedAt = 0;
   startTime = audioCtx.currentTime;
-  if (audioLoaded && playAudioEl?.checked) {
+  if (audioLoaded && (playAudioEl && playAudioEl.checked)) {
     const a = ensureAudioEl();
     const target = Math.max(0, 0 + getSyncOffset());
     a.currentTime = target;
@@ -585,7 +585,7 @@ if (btnRestart) btnRestart.addEventListener("click", () => {
   if (!audioCtx) return;
   const t0 = loopA != null ? loopA : 0;
   setTimelineTo(t0);
-  if (audioLoaded && playAudioEl?.checked) {
+  if (audioLoaded && (playAudioEl && playAudioEl.checked)) {
     const a = ensureAudioEl();
     const target = Math.max(0, t0 + getSyncOffset());
     a.currentTime = target;
@@ -629,10 +629,10 @@ function tick() {
   const speed = getSpeedFactor();
   const t = (audioCtx.currentTime - startTime) * speed;
   // Loop A–B (visual timeline)
-  if (loopOnEl?.checked && loopA != null && loopB != null && t >= loopB) {
+  if ((loopOnEl && loopOnEl.checked) && loopA != null && loopB != null && t >= loopB) {
     const backTo = loopA;
     setTimelineTo(backTo);
-    if (audioLoaded && playAudioEl?.checked) {
+    if (audioLoaded && (playAudioEl && playAudioEl.checked)) {
       const a = ensureAudioEl();
       a.currentTime = Math.max(0, backTo + getSyncOffset());
       a.play().catch(()=>{});
@@ -643,7 +643,7 @@ function tick() {
   }
 
   // Optional audio sync
-  if (audioLoaded && playAudioEl?.checked) {
+  if (audioLoaded && (playAudioEl && playAudioEl.checked)) {
     const a = ensureAudioEl();
     const want = Math.max(0, t + getSyncOffset());
     const drift = Math.abs((a.currentTime || 0) - want);
@@ -1041,7 +1041,7 @@ async function refreshLibrary() {
 
 function renderLibrary() {
   if (!libList) return;
-  const q = (libSearch?.value || "").trim().toLowerCase();
+  const q = ((libSearch && libSearch.value) || "").trim().toLowerCase();
   const items = q ? libraryItems.filter(it => (it.name||"").toLowerCase().includes(q)) : libraryItems;
 
   libList.innerHTML = "";
@@ -1158,7 +1158,7 @@ if ("serviceWorker" in navigator) {
 document.addEventListener("DOMContentLoaded", () => {
   // honor the active tab button in the DOM
   const active = document.querySelector(".tab.active");
-  const tab = active?.dataset?.tab || "tuner";
+  const tab = (active && active.dataset)?.tab || "tuner";
   showTab(tab);
   if (tab === "library") refreshLibrary();
 });
